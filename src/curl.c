@@ -157,39 +157,58 @@ static size_t swupd_download_version_to_memory(void *ptr, size_t size, size_t nm
 /* curl easy CURLOPT_WRITEFUNCTION callback */
 size_t swupd_download_file(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
-	struct file *file = (struct file *)userdata;
+	struct file *file = (struct file*)userdata;
 	const char *outfile;
 	int fd;
 	FILE *f;
-	size_t written;
+	size_t written, remaining;
 
 	outfile = file->staging;
+        if (file->fd_valid) {
+		fd = file->fd;
+        } else {
+		fd = open(outfile, O_CREAT | O_RDWR | O_CLOEXEC | O_APPEND, 00600);
+		if (fd < 0) {
+			LOG_ERROR(file, "Cannot open file for write", class_file_io,
+				  "\\*outfile=\"%s\",strerror=\"%s\"*\\", outfile, strerror(errno));
+			return -1;
+		}
+		file->fd = fd;
+		file->fd_valid = 1;
+        }
 
-	fd = open(outfile, O_CREAT | O_RDWR, 00600);
-	if (fd < 0) {
-		printf("Error: Cannot open %s for write: %s\n",
-		       outfile, strerror(errno));
+        /* handle short writes with repeated write() calls */
+        for (remaining = size*nmemb; remaining; remaining -= written) {
+		written = write(fd, ptr, size*nmemb);
+		if (written < 0) {
+			LOG_ERROR(file, "write error", class_file_io,
+				  "\\*outfile=\"%s\",strerror=\"%s\"*\\", outfile, strerror(errno));
+			return -1;
+		}
+        }
+
+        if (fdatasync(fd)) {
+		LOG_ERROR(file, "fdatasync", class_file_io,
+			  "\\*outfile=\"%s\",strerror=\"%s\"*\\", outfile, strerror(errno));
 		return -1;
+        }
+
+	return size*nmemb;
+}
+
+CURLcode swupd_download_file_complete(CURLcode curl_ret, struct file *file)
+{
+	if (file->fd_valid) {
+		if (close(file->fd)) {
+			LOG_ERROR(file, "Cannot close file after write", class_file_io,
+				  "\\*outfile=\"%s\",strerror=\"%s\"*\\", file->staging, strerror(errno));
+			if (curl_ret == CURLE_OK) {
+				curl_ret = CURLE_WRITE_ERROR;
+			}
+		}
+		file->fd_valid = 0;
 	}
-
-	f = fdopen(fd, "a");
-	if (!f) {
-		printf("Error: Cannot fdopen %s for write: %s\n",
-		       outfile, strerror(errno));
-		close(fd);
-		return -1;
-	}
-
-	written = fwrite(ptr, size * nmemb, 1, f);
-
-	fflush(f);
-	fclose(f);
-
-	if (written != 1) {
-		return -1;
-	}
-
-	return size * nmemb;
+	return curl_ret;
 }
 
 /* Download a single file SYNCHRONOUSLY
@@ -227,7 +246,6 @@ int swupd_curl_get_file(const char *url, char *filename, struct file *file,
 			}
 		}
 		local->staging = filename;
-
 		if (lstat(filename, &stat) == 0) {
 			if (pack) {
 				curl_ret = curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)stat.st_size);
@@ -277,6 +295,9 @@ int swupd_curl_get_file(const char *url, char *filename, struct file *file,
 	}
 
 exit:
+	if (local) {
+		curl_ret = swupd_download_file_complete(curl_ret, local);
+	}
 	if (curl_ret == CURLE_OK) {
 		/* curl command succeeded, download might've failed, let our caller handle */
 		switch (ret) {
