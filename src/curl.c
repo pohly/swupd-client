@@ -169,8 +169,8 @@ size_t swupd_download_file(void *ptr, size_t size, size_t nmemb, void *userdata)
         } else {
 		fd = open(outfile, O_CREAT | O_RDWR | O_CLOEXEC | O_APPEND, 00600);
 		if (fd < 0) {
-			LOG_ERROR(file, "Cannot open file for write", class_file_io,
-				  "\\*outfile=\"%s\",strerror=\"%s\"*\\", outfile, strerror(errno));
+			fprintf(stderr, "Cannot open file for write \\*outfile=\"%s\",strerror=\"%s\"*\\\n",
+			       outfile, strerror(errno));
 			return -1;
 		}
 		file->fd = fd;
@@ -181,15 +181,14 @@ size_t swupd_download_file(void *ptr, size_t size, size_t nmemb, void *userdata)
         for (remaining = size*nmemb; remaining; remaining -= written) {
 		written = write(fd, ptr, size*nmemb);
 		if (written < 0) {
-			LOG_ERROR(file, "write error", class_file_io,
-				  "\\*outfile=\"%s\",strerror=\"%s\"*\\", outfile, strerror(errno));
+			fprintf(stderr, "write error \\*outfile=\"%s\",strerror=\"%s\"*\\\n",
+				outfile, strerror(errno));
 			return -1;
 		}
         }
 
         if (fdatasync(fd)) {
-		LOG_ERROR(file, "fdatasync", class_file_io,
-			  "\\*outfile=\"%s\",strerror=\"%s\"*\\", outfile, strerror(errno));
+		fprintf(stderr, "fdatasync \\*outfile=\"%s\",strerror=\"%s\"*\\\n", outfile, strerror(errno));
 		return -1;
         }
 
@@ -200,8 +199,8 @@ CURLcode swupd_download_file_complete(CURLcode curl_ret, struct file *file)
 {
 	if (file->fd_valid) {
 		if (close(file->fd)) {
-			LOG_ERROR(file, "Cannot close file after write", class_file_io,
-				  "\\*outfile=\"%s\",strerror=\"%s\"*\\", file->staging, strerror(errno));
+			fprintf(stderr, "Cannot close file after write \\*outfile=\"%s\",strerror=\"%s\"*\\\n",
+				file->staging, strerror(errno));
 			if (curl_ret == CURLE_OK) {
 				curl_ret = CURLE_WRITE_ERROR;
 			}
