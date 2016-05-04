@@ -164,7 +164,7 @@ static void free_curl_list_data(void *data)
 {
 	struct file *file = (struct file *)data;
 	CURL *curl = file->curl;
-	swupd_download_file_complete(CURLE_OK, file);
+	(void) swupd_download_file_complete(CURLE_OK, file);
 	if (curl != NULL) {
 		curl_multi_remove_handle(mcurl, curl);
 		curl_easy_cleanup(curl);

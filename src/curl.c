@@ -157,28 +157,28 @@ static size_t swupd_download_version_to_memory(void *ptr, size_t size, size_t nm
 /* curl easy CURLOPT_WRITEFUNCTION callback */
 size_t swupd_download_file(void *ptr, size_t size, size_t nmemb, void *userdata)
 {
-	struct file *file = (struct file*)userdata;
+	struct file *file = (struct file *)userdata;
 	const char *outfile;
 	int fd;
 	FILE *f;
 	size_t written, remaining;
 
 	outfile = file->staging;
-        if (file->fd_valid) {
+	if (file->fd_valid) {
 		fd = file->fd;
-        } else {
+	} else {
 		fd = open(outfile, O_CREAT | O_RDWR | O_CLOEXEC | O_APPEND, 00600);
 		if (fd < 0) {
 			fprintf(stderr, "Cannot open file for write \\*outfile=\"%s\",strerror=\"%s\"*\\\n",
-			       outfile, strerror(errno));
+				outfile, strerror(errno));
 			return -1;
 		}
 		file->fd = fd;
 		file->fd_valid = 1;
-        }
+	}
 
-        /* handle short writes with repeated write() calls */
-        for (remaining = size*nmemb; remaining; remaining -= written) {
+	/* handle short writes with repeated write() calls */
+	for (remaining = size * nmemb; remaining; remaining -= written) {
 		written = write(fd, ptr, size*nmemb);
 		if (written < 0) {
 			if (errno == EINTR) {
@@ -189,12 +189,12 @@ size_t swupd_download_file(void *ptr, size_t size, size_t nmemb, void *userdata)
 				outfile, strerror(errno));
 			return -1;
 		}
-        }
+	}
 
-        if (fdatasync(fd)) {
+	if (fdatasync(fd)) {
 		fprintf(stderr, "fdatasync \\*outfile=\"%s\",strerror=\"%s\"*\\\n", outfile, strerror(errno));
 		return -1;
-        }
+	}
 
 	return size*nmemb;
 }
@@ -249,6 +249,7 @@ int swupd_curl_get_file(const char *url, char *filename, struct file *file,
 			}
 		}
 		local->staging = filename;
+
 		if (lstat(filename, &stat) == 0) {
 			if (pack) {
 				curl_ret = curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, (curl_off_t)stat.st_size);
