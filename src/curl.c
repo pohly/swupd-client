@@ -181,6 +181,10 @@ size_t swupd_download_file(void *ptr, size_t size, size_t nmemb, void *userdata)
         for (remaining = size*nmemb; remaining; remaining -= written) {
 		written = write(fd, ptr, size*nmemb);
 		if (written < 0) {
+			if (errno == EINTR) {
+				written = 0;
+				continue;
+			}
 			fprintf(stderr, "write error \\*outfile=\"%s\",strerror=\"%s\"*\\\n",
 				outfile, strerror(errno));
 			return -1;
